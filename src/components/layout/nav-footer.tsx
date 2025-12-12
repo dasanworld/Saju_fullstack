@@ -6,16 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, User } from "lucide-react";
+import { LogOut, Settings, User } from "lucide-react";
 
 export function NavFooter() {
   const { user } = useCurrentUser();
   const { data: subscription, isLoading } = useSubscription();
   const router = useRouter();
-  const { signOut } = useClerk();
+  const { signOut, openUserProfile } = useClerk();
 
   const handleLogout = () => {
     signOut({ redirectUrl: "/sign-in" });
+  };
+
+  const handleManageAccount = () => {
+    openUserProfile();
   };
 
   if (isLoading) {
@@ -50,11 +54,20 @@ export function NavFooter() {
         </Button>
       </div>
 
-      <div className="p-4 border-t space-y-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="p-4 border-t space-y-1">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground pb-2">
           <User className="w-4 h-4" />
           <span className="truncate flex-1">{user.email}</span>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-muted-foreground hover:text-foreground"
+          onClick={handleManageAccount}
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          계정 관리
+        </Button>
         <Button
           variant="ghost"
           size="sm"
