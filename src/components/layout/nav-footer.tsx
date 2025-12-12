@@ -15,7 +15,7 @@ export function NavFooter() {
   const { signOut, openUserProfile } = useClerk();
 
   const handleLogout = () => {
-    signOut({ redirectUrl: "/sign-in" });
+    signOut({ redirectUrl: "/" });
   };
 
   const handleManageAccount = () => {
