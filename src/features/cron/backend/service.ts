@@ -2,15 +2,19 @@ import type { AppContext } from "@/backend/hono/context";
 import { success, failure } from "@/backend/http/response";
 import { chargeTossPayment, deleteTossBillingKey } from "@/lib/toss/client";
 import { cronErrorCodes } from "./error";
+import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 
 const PRO_PRICE = 3900;
+const TIMEZONE = "Asia/Seoul";
 
 export const processDailyBilling = async (c: AppContext) => {
   const supabase = c.get("supabase");
   const logger = c.get("logger");
 
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const now = toZonedTime(new Date(), TIMEZONE);
+    const today = format(now, "yyyy-MM-dd");
 
     const { data: subscriptions, error: queryError } = await supabase
       .from("subscriptions")
@@ -83,14 +87,14 @@ export const processDailyBilling = async (c: AppContext) => {
       });
 
       if (paymentResult.success) {
-        const nextBillingDate = new Date(today);
+        const nextBillingDate = toZonedTime(new Date(), TIMEZONE);
         nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
         await supabase
           .from("subscriptions")
           .update({
             remaining_tests: 10,
-            next_billing_date: nextBillingDate.toISOString().split("T")[0],
+            next_billing_date: format(nextBillingDate, "yyyy-MM-dd"),
           })
           .eq("id", subscription.id);
 

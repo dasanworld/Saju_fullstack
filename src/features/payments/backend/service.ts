@@ -4,9 +4,11 @@ import { success, failure } from "@/backend/http/response";
 import { paymentsErrorCodes, type PaymentsErrorCode } from "./error";
 import type { ConfirmPaymentResponse } from "./schema";
 import { addMonths, format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 
 const SUBSCRIPTION_AMOUNT = 3900;
 const PRO_MONTHLY_TESTS = 10;
+const TIMEZONE = "Asia/Seoul";
 
 type TossPaymentResponse = {
   paymentKey: string;
@@ -87,7 +89,7 @@ export async function confirmPayment(
     }
 
     // 4. 구독 활성화 (기존 subscriptions 테이블 구조 사용)
-    const now = new Date();
+    const now = toZonedTime(new Date(), TIMEZONE);
     const nextBillingDate = addMonths(now, 1);
 
     const { error: subscriptionError } = await supabase
