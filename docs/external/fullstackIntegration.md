@@ -15,7 +15,8 @@
 4. [Toss Payments 결제](#4-toss-payments-결제)
 5. [Gemini AI (Vercel AI SDK)](#5-gemini-ai-vercel-ai-sdk)
 6. [보안 체크리스트](#6-보안-체크리스트)
-7. [공식 문서 및 참고 자료](#7-공식-문서-및-참고-자료)
+7. [환경변수 발급 가이드](#7-환경변수-발급-가이드)
+8. [공식 문서 및 참고 자료](#8-공식-문서-및-참고-자료)
 
 ---
 
@@ -70,7 +71,9 @@
 npm install @clerk/nextjs
 ```
 
-#### 2.3.2 환경변수 설정 (`.env.local`)
+#### 2.3.2 환경변수 설정
+
+`.env` 또는 `.env.local` 파일에 아래 키를 추가합니다. 파일이 없다면 프로젝트 루트에 새로 생성합니다.
 
 ```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
@@ -78,7 +81,13 @@ CLERK_SECRET_KEY=sk_test_xxx
 CLERK_WEBHOOK_SIGNING_SECRET=whsec_xxx
 ```
 
+> ℹ️ 이 키들은 [Clerk Dashboard](https://dashboard.clerk.com) → API Keys 페이지에서 언제든지 확인할 수 있습니다.
+
 #### 2.3.3 ClerkProvider 설정 (`app/layout.tsx`)
+
+`ClerkProvider`는 앱 전체에 Clerk 인증 컨텍스트를 제공합니다.
+
+**기본 설정:**
 
 ```tsx
 import { ClerkProvider } from '@clerk/nextjs'
@@ -94,9 +103,78 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-#### 2.3.4 미들웨어 설정 (`middleware.ts`)
+**헤더 컴포넌트 포함 예제 (권장):**
+
+```tsx
+import {
+  ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from '@clerk/nextjs'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ClerkProvider>
+      <html lang="ko">
+        <body>
+          <header className="flex justify-end items-center p-4 gap-4 h-16">
+            <SignedOut>
+              <SignInButton />
+              <SignUpButton />
+            </SignedOut>
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+          </header>
+          {children}
+        </body>
+      </html>
+    </ClerkProvider>
+  )
+}
+```
+
+| 컴포넌트 | 설명 |
+|----------|------|
+| `SignedOut` | 로그아웃 상태에서만 렌더링 |
+| `SignedIn` | 로그인 상태에서만 렌더링 |
+| `SignInButton` | 로그인 버튼 (Account Portal로 이동) |
+| `SignUpButton` | 회원가입 버튼 |
+| `UserButton` | 사용자 프로필 드롭다운 |
+
+#### 2.3.4 미들웨어 설정
+
+> ⚠️ **파일명 주의**:
+> - **Next.js 15 이상**: `proxy.ts`
+> - **Next.js 15 미만**: `middleware.ts`
+
+프로젝트 루트 또는 `src/` 디렉토리에 파일을 생성합니다.
+
+**기본 설정 (모든 라우트 인증 활성화):**
 
 ```ts
+// proxy.ts (Next.js 15+) 또는 middleware.ts (Next.js 15 미만)
+import { clerkMiddleware } from '@clerk/nextjs/server'
+
+export default clerkMiddleware()
+
+export const config = {
+  matcher: [
+    // Next.js 내부 파일 및 정적 파일 제외
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // API 라우트는 항상 실행
+    '/(api|trpc)(.*)',
+  ],
+}
+```
+
+**라우트 보호 커스터마이징 (Public/Protected 라우트 분리):**
+
+```ts
+// proxy.ts (Next.js 15+) 또는 middleware.ts (Next.js 15 미만)
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
 const isPublicRoute = createRouteMatcher([
@@ -113,7 +191,10 @@ export default clerkMiddleware(async (auth, req) => {
 })
 
 export const config = {
-  matcher: ['/((?!.*\\..*|_next).*)', '/', '/(api|trpc)(.*)']
+  matcher: [
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
+  ],
 }
 ```
 
@@ -325,33 +406,38 @@ export async function updatePost(postId: string, data: any) {
 
 ### 4.1 연동 수단
 
-- **SDK (V1)**: `@tosspayments/payment-widget-sdk` v0.12.0
-- **SDK (V2, 권장)**: `@tosspayments/tosspayments-sdk` v2.3.5+
-- **REST API**: 결제 승인 API
+- **SDK**: `@tosspayments/tosspayments-sdk` v2.x (권장)
+- **REST API**: 결제 승인 API (`/v1/payments/confirm`)
+
+> ℹ️ **SDK v2 안내**: 2024년부터 토스페이먼츠는 결제위젯, 브랜드페이, 결제창을 **하나의 통합 SDK**로 제공합니다. 기존 V1 SDK도 동작하지만, 신규 연동 시 V2 사용을 권장합니다.
 
 ### 4.2 사용 기능
 
 | 기능 | 설명 |
 |------|------|
-| `PaymentWidget` | 결제 UI 위젯 렌더링 |
-| `renderPaymentMethods()` | 결제 수단 UI 표시 |
-| `renderAgreement()` | 약관 동의 UI 표시 |
+| `TossPayments()` | 통합 SDK 초기화 |
+| `widgets()` | 결제위젯 인스턴스 생성 |
+| `setAmount()` | 결제 금액 설정 (렌더링 전 필수 호출) |
+| `renderPaymentMethods()` | 결제 수단 UI 렌더링 (비동기) |
+| `renderAgreement()` | 약관 동의 UI 렌더링 (비동기) |
 | `requestPayment()` | 결제 요청 실행 |
 | `POST /v1/payments/confirm` | 결제 승인 API |
 
 ### 4.3 설치 및 세팅
 
-#### 4.3.1 패키지 설치 (V2 권장)
+#### 4.3.1 패키지 설치 (npm 사용 시)
 
 ```bash
-# V2 (권장)
 npm install @tosspayments/tosspayments-sdk
-
-# V1 (기존)
-npm install @tosspayments/payment-widget-sdk
 ```
 
-#### 4.3.2 환경변수 설정
+#### 4.3.2 스크립트 태그 방식 (CDN)
+
+```html
+<script src="https://js.tosspayments.com/v2/standard"></script>
+```
+
+#### 4.3.3 환경변수 설정
 
 ```env
 NEXT_PUBLIC_TOSS_CLIENT_KEY=test_gck_xxx
@@ -365,11 +451,11 @@ TOSS_SECRET_KEY=test_gsk_xxx
 | `NEXT_PUBLIC_TOSS_CLIENT_KEY` | 클라이언트 위젯용, 공개 가능 |
 | `TOSS_SECRET_KEY` | 결제 승인 API용, 서버 전용 |
 
-> ⚠️ **주의**: `test_` 접두사 키는 테스트용. 실결제 시 `live_` 키 사용.
+> ⚠️ **주의**: `test_` 접두사 키는 테스트용. 실결제 시 `live_` 키 사용. 클라이언트 키는 V1/V2 모두 동일하게 사용 가능.
 
 ### 4.5 호출 방법
 
-#### 4.5.1 결제 위젯 렌더링 (V2)
+#### 4.5.1 결제위젯 초기화 및 렌더링 (V2)
 
 ```tsx
 // app/checkout/page.tsx (Client Component)
@@ -377,24 +463,29 @@ TOSS_SECRET_KEY=test_gsk_xxx
 import { useEffect, useRef } from 'react'
 
 export default function CheckoutPage() {
-  const widgetRef = useRef<any>(null)
+  const widgetsRef = useRef<any>(null)
   
   useEffect(() => {
     const script = document.createElement('script')
     script.src = 'https://js.tosspayments.com/v2/standard'
     script.onload = async () => {
+      // 1. SDK 초기화
       const tossPayments = (window as any).TossPayments(
         process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
       )
+      
+      // 2. 결제위젯 인스턴스 생성
       const widgets = tossPayments.widgets({
-        customerKey: 'CUSTOMER_UNIQUE_ID'  // 회원 고유 ID
+        customerKey: 'CUSTOMER_UNIQUE_ID'  // 회원 고유 ID (비회원: ANONYMOUS)
       })
       
+      // 3. 결제 금액 설정 (렌더링 전 필수!)
       await widgets.setAmount({
         currency: 'KRW',
         value: 50000
       })
       
+      // 4. UI 렌더링 (비동기)
       await Promise.all([
         widgets.renderPaymentMethods({
           selector: '#payment-method',
@@ -406,19 +497,27 @@ export default function CheckoutPage() {
         })
       ])
       
-      widgetRef.current = widgets
+      widgetsRef.current = widgets
     }
     document.head.appendChild(script)
   }, [])
   
+  // 금액 변경 시 (할인 쿠폰 등)
+  const updateAmount = async (newAmount: number) => {
+    await widgetsRef.current?.setAmount({
+      currency: 'KRW',
+      value: newAmount
+    })
+  }
+  
   const handlePayment = async () => {
-    await widgetRef.current?.requestPayment({
+    await widgetsRef.current?.requestPayment({
       orderId: 'ORDER_' + Date.now(),
-      orderName: '상품명',
+      orderName: '토스 티셔츠 외 2건',
       successUrl: window.location.origin + '/checkout/success',
       failUrl: window.location.origin + '/checkout/fail',
       customerEmail: 'customer@example.com',
-      customerName: '홍길동'
+      customerName: '김토스'
     })
   }
   
@@ -432,6 +531,15 @@ export default function CheckoutPage() {
 }
 ```
 
+**V2 주요 변경사항:**
+
+| V1 | V2 | 설명 |
+|----|-----|------|
+| `updateAmount()` | `setAmount()` | 금액 설정 메서드 통합, 렌더링 전 필수 호출 |
+| 동기 렌더링 | 비동기 렌더링 | `renderPaymentMethods()`, `renderAgreement()` → `await` 필요 |
+| `on('ready', ...)` | `await` 완료 | ready 이벤트 제거, Promise로 대체 |
+| `amount: number` | `amount: { value, currency }` | 금액이 객체 타입으로 변경 |
+
 #### 4.5.2 결제 승인 (Server Action)
 
 ```ts
@@ -444,6 +552,8 @@ export async function confirmPayment(
   amount: number
 ) {
   // ⚠️ 주문 금액 검증 (DB에서 원래 금액 조회 후 비교 필수!)
+  // const order = await getOrderFromDB(orderId)
+  // if (order.amount !== amount) throw new Error('금액 불일치')
   
   const secretKey = process.env.TOSS_SECRET_KEY!
   const encodedKey = Buffer.from(secretKey + ':').toString('base64')
@@ -469,7 +579,7 @@ export async function confirmPayment(
 }
 ```
 
-> 🚨 **경고**: `amount`는 반드시 서버에서 원래 주문 금액과 비교 검증해야 함!
+> 🚨 **경고**: `amount`는 반드시 서버에서 원래 주문 금액과 비교 검증해야 함! API 엔드포인트는 SDK 버전과 관계없이 `/v1/payments/confirm` 사용.
 
 #### 4.5.3 성공 페이지에서 결제 승인 호출
 
@@ -480,15 +590,40 @@ import { confirmPayment } from '@/app/actions/payment'
 export default async function SuccessPage({ 
   searchParams 
 }: { 
-  searchParams: { paymentKey: string; orderId: string; amount: string } 
+  searchParams: Promise<{ paymentKey: string; orderId: string; amount: string }>
 }) {
-  const { paymentKey, orderId, amount } = searchParams
+  const { paymentKey, orderId, amount } = await searchParams
   
   // 서버에서 결제 승인 처리
   const result = await confirmPayment(paymentKey, orderId, Number(amount))
   
   return <div>결제 완료: {result.orderName}</div>
 }
+```
+
+#### 4.5.4 레거시 V1 참고 (기존 프로젝트용)
+
+<details>
+<summary>V1 SDK 코드 (클릭하여 펼치기)</summary>
+
+```bash
+# V1 패키지 설치
+npm install @tosspayments/payment-widget-sdk
+```
+
+```javascript
+// V1 초기화 (레거시)
+const paymentWidget = PaymentWidget(clientKey, customerKey)
+
+// V1 렌더링 (동기, 금액 파라미터 포함)
+paymentWidget.renderPaymentMethods('#payment-method', {
+  value: 50000,
+  currency: 'KRW',
+  country: 'KR'
+})
+```
+
+</details>
 ```
 
 ---
@@ -650,31 +785,176 @@ export async function analyzeContent(content: string) {
 
 ---
 
-## 7. 공식 문서 및 참고 자료
+## 7. 환경변수 발급 가이드
 
-### 7.1 Next.js
+각 서비스별 API 키 및 환경변수를 발급받는 단계별 가이드입니다.
+
+### 7.1 Clerk 환경변수
+
+#### NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY & CLERK_SECRET_KEY
+
+1. [Clerk 홈페이지](https://clerk.com) 접속
+2. 우측 상단 **Sign Up** 클릭하여 계정 생성 (GitHub/Google 로그인 가능)
+3. 로그인 후 **Dashboard** 진입
+4. **Create application** 클릭
+5. 앱 이름 입력 및 로그인 방식 선택 (Email, Google, GitHub 등)
+6. **Create application** 버튼 클릭
+7. 생성 완료 화면에서 바로 키 확인 가능:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: `pk_test_...` 또는 `pk_live_...`
+   - `CLERK_SECRET_KEY`: `sk_test_...` 또는 `sk_live_...`
+8. 또는 좌측 메뉴 **Configure** → **API Keys**에서 언제든 확인 가능
+
+#### CLERK_WEBHOOK_SIGNING_SECRET
+
+1. Clerk Dashboard에서 좌측 메뉴 **Configure** → **Webhooks** 클릭
+2. **Add Endpoint** 버튼 클릭
+3. **Endpoint URL** 입력: `https://your-domain.com/api/webhooks`
+4. **Subscribe to events**에서 이벤트 선택:
+   - `user.created` (필수)
+   - `user.updated` (권장)
+   - `user.deleted` (권장)
+5. **Create** 버튼 클릭
+6. 생성된 Webhook 클릭 → **Signing Secret** 확인
+   - `whsec_...` 형식
+
+> ⚠️ **개발 환경 팁**: 로컬 개발 시 [ngrok](https://ngrok.com)으로 터널링하여 Webhook 테스트 가능
+
+---
+
+### 7.2 Supabase 환경변수
+
+#### NEXT_PUBLIC_SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY
+
+1. [Supabase 홈페이지](https://supabase.com) 접속
+2. 우측 상단 **Start your project** 클릭
+3. GitHub 계정으로 로그인
+4. **New project** 버튼 클릭
+5. 프로젝트 정보 입력:
+   - **Organization**: 선택 또는 새로 생성
+   - **Project name**: 프로젝트 이름
+   - **Database Password**: 데이터베이스 비밀번호 (안전하게 보관!)
+   - **Region**: 가까운 지역 선택 (예: Northeast Asia - Tokyo)
+6. **Create new project** 클릭 (생성에 1-2분 소요)
+7. 프로젝트 생성 완료 후:
+   - 좌측 메뉴 **Project Settings** (톱니바퀴 아이콘) 클릭
+   - **API** 섹션 선택
+8. 키 확인:
+   - **Project URL**: `https://xxx.supabase.co` → `NEXT_PUBLIC_SUPABASE_URL`
+   - **Project API keys** 섹션:
+     - `anon` `public`: 공개 키 (RLS 활성화 시 사용)
+     - `service_role` `secret`: → `SUPABASE_SERVICE_ROLE_KEY`
+
+> 🚨 **경고**: `service_role` 키는 RLS를 완전히 우회합니다. **절대 클라이언트에 노출하지 마세요!**
+
+---
+
+### 7.3 Toss Payments 환경변수
+
+#### NEXT_PUBLIC_TOSS_CLIENT_KEY & TOSS_SECRET_KEY
+
+1. [Toss Payments 개발자센터](https://developers.tosspayments.com) 접속
+2. 우측 상단 **로그인** 클릭
+3. 토스 계정으로 로그인 (없으면 회원가입)
+4. 로그인 후 **내 개발정보** 메뉴 클릭
+5. **API 키** 섹션에서 확인:
+
+**테스트 키 (개발용)**:
+
+| 키 종류 | 환경변수 | 형식 |
+|---------|----------|------|
+| 클라이언트 키 | `NEXT_PUBLIC_TOSS_CLIENT_KEY` | `test_gck_...` |
+| 시크릿 키 | `TOSS_SECRET_KEY` | `test_gsk_...` |
+
+**라이브 키 (실결제용)**:
+- 실결제를 위해서는 **사업자 인증** 필요
+- 인증 완료 후 라이브 키 발급 (`live_gck_...`, `live_gsk_...`)
+
+> ℹ️ **V1/V2 호환**: 클라이언트 키, 시크릿 키는 SDK V1/V2 모두 동일하게 사용 가능합니다. 결제위젯 연동 시 결제위젯 연동 키, 결제창/브랜드페이는 API 개별 연동 키를 사용하세요.
+
+> ℹ️ **테스트 결제**: 테스트 키 사용 시 실제 결제 없이 테스트 가능. 테스트 카드번호: `4330000070002311`
+
+---
+
+### 7.4 Gemini AI 환경변수
+
+#### GOOGLE_GENERATIVE_AI_API_KEY
+
+1. [Google AI Studio](https://aistudio.google.com) 접속
+2. Google 계정으로 로그인
+3. 좌측 메뉴에서 **Get API key** 클릭
+4. **Create API key** 버튼 클릭
+5. 프로젝트 선택:
+   - 기존 Google Cloud 프로젝트 선택, 또는
+   - **Create API key in new project** 선택하여 새 프로젝트 생성
+6. API 키 생성 완료 → `AIzaSy...` 형식의 키 복사
+7. 이 키를 `GOOGLE_GENERATIVE_AI_API_KEY`로 사용
+
+> ⚠️ **주의사항**:
+> - 무료 티어: 분당 15회, 일 1,500회 요청 제한
+> - 프로덕션 사용 시 [Google Cloud Console](https://console.cloud.google.com)에서 결제 설정 필요
+
+---
+
+### 7.5 최종 .env.local 파일 템플릿
+
+```env
+# ========================================
+# Clerk (https://clerk.com/dashboard)
+# ========================================
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CLERK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ========================================
+# Supabase (https://supabase.com/dashboard)
+# ========================================
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx
+
+# ========================================
+# Toss Payments (https://developers.tosspayments.com)
+# ========================================
+NEXT_PUBLIC_TOSS_CLIENT_KEY=test_gck_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TOSS_SECRET_KEY=test_gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ========================================
+# Gemini AI (https://aistudio.google.com)
+# ========================================
+GOOGLE_GENERATIVE_AI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+> 🚨 **필수 확인사항**:
+> - `.env.local` 파일이 `.gitignore`에 포함되어 있는지 확인
+> - `NEXT_PUBLIC_` 접두사가 없는 키는 서버에서만 접근 가능
+> - Production 배포 시 각 플랫폼(Vercel 등)의 환경변수 설정에 등록
+
+---
+
+## 8. 공식 문서 및 참고 자료
+
+### 8.1 Next.js
 
 - 공식 문서: https://nextjs.org/docs
 - Server Actions: https://nextjs.org/docs/app/api-reference/functions/server-actions
 
-### 7.2 Clerk
+### 8.2 Clerk
 
 - 공식 문서: https://clerk.com/docs
 - Webhook 가이드: https://clerk.com/docs/webhooks/sync-data
 - Next.js 통합: https://clerk.com/docs/quickstarts/nextjs
 
-### 7.3 Supabase
+### 8.3 Supabase
 
 - 공식 문서: https://supabase.com/docs
 - JavaScript SDK: https://github.com/supabase/supabase-js
 
-### 7.4 Toss Payments
+### 8.4 Toss Payments
 
 - 위젯 연동: https://docs.tosspayments.com/en/integration-widget
 - API 문서: https://docs.tosspayments.com/reference
 - 샌드박스: https://developers.tosspayments.com/sandbox
 
-### 7.5 Vercel AI SDK
+### 8.5 Vercel AI SDK
 
 - 공식 문서: https://ai-sdk.dev
 - Google Provider: https://ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai
