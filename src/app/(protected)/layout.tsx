@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { type ReactNode } from "react";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
-import { LOGIN_PATH } from "@/constants/auth";
-
-const buildRedirectUrl = (pathname: string) => {
-  const redirectUrl = new URL(LOGIN_PATH, window.location.origin);
-  redirectUrl.searchParams.set("redirectedFrom", pathname);
-  return redirectUrl.toString();
-};
+import { GlobalNav } from "@/components/layout/global-nav";
+import { NavFooter } from "@/components/layout/nav-footer";
 
 type ProtectedLayoutProps = {
   children: ReactNode;
@@ -17,18 +11,28 @@ type ProtectedLayoutProps = {
 
 export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
   const { isAuthenticated, isLoading } = useCurrentUser();
-  const router = useRouter();
-  const pathname = usePathname();
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace(buildRedirectUrl(pathname));
-    }
-  }, [isAuthenticated, isLoading, pathname, router]);
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="flex min-h-screen">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r bg-background">
+        <GlobalNav />
+        <NavFooter />
+      </aside>
+      <main className="flex-1 pl-64">
+        {children}
+      </main>
+    </div>
+  );
 }
