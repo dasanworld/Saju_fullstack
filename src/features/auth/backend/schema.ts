@@ -5,11 +5,13 @@ export const clerkWebhookSchema = z.discriminatedUnion("type", [
     type: z.literal("user.created"),
     data: z.object({
       id: z.string(),
-      email_addresses: z.array(
-        z.object({
-          email_address: z.string().email(),
-        })
-      ),
+      email_addresses: z
+        .array(
+          z.object({
+            email_address: z.string().email(),
+          })
+        )
+        .min(1),
     }),
   }),
   z.object({

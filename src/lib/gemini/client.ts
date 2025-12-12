@@ -13,7 +13,6 @@ export const generateSajuAnalysis = async (
     const { text } = await generateText({
       model: google(model),
       prompt,
-      maxTokens: 2000,
       temperature: 0.7,
     });
 

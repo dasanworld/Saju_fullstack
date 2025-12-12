@@ -16,7 +16,7 @@ export const initTossPayments = async () => {
 export const requestBillingKey = async (params: RequestBillingKeyParams) => {
   const tossPayments = await initTossPayments();
 
-  return await tossPayments.requestBillingAuth("카드", {
+  return await (tossPayments as any).requestBillingAuth("카드", {
     customerKey: params.customerKey,
     successUrl: params.successUrl,
     failUrl: params.failUrl,

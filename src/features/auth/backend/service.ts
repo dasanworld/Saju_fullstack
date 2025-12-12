@@ -7,11 +7,11 @@ import { deleteTossBillingKey } from "@/lib/toss/client";
 export const handleUserCreated = async (
   c: AppContext,
   data: ClerkUserCreated
-) => {
+): Promise<ReturnType<typeof success> | ReturnType<typeof failure>> => {
   const supabase = c.get("supabase");
   const logger = c.get("logger");
 
-  const email = data.email_addresses[0]?.email_address;
+  const email = (data as any).email_addresses[0]?.email_address;
 
   if (!email) {
     return failure(400, authErrorCodes.EMAIL_MISSING, "이메일이 없습니다.");
@@ -21,7 +21,7 @@ export const handleUserCreated = async (
     const { data: user, error: userError } = await supabase
       .from("users")
       .insert({
-        clerk_user_id: data.id,
+        clerk_user_id: (data as any).id,
         email,
       })
       .select()
@@ -56,7 +56,7 @@ export const handleUserCreated = async (
 export const handleUserDeleted = async (
   c: AppContext,
   data: ClerkUserDeleted
-) => {
+): Promise<ReturnType<typeof success> | ReturnType<typeof failure>> => {
   const supabase = c.get("supabase");
   const logger = c.get("logger");
 
@@ -71,7 +71,7 @@ export const handleUserDeleted = async (
         )
       `
       )
-      .eq("clerk_user_id", data.id)
+      .eq("clerk_user_id", (data as any).id)
       .single();
 
     const subscriptionData = user?.subscriptions as unknown;
@@ -98,14 +98,14 @@ export const handleUserDeleted = async (
     const { error } = await supabase
       .from("users")
       .delete()
-      .eq("clerk_user_id", data.id);
+      .eq("clerk_user_id", (data as any).id);
 
     if (error) {
       logger.error("User deletion failed", error);
       return failure(500, authErrorCodes.USER_DELETE_FAILED, "사용자 삭제 실패");
     }
 
-    logger.info("User deleted successfully", { clerk_user_id: data.id });
+    logger.info("User deleted successfully", { clerk_user_id: (data as any).id });
 
     return success({ message: "User deleted" });
   } catch (error) {
