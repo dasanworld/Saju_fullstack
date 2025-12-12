@@ -12,14 +12,14 @@ export function HeroSection() {
   const [imageUrl, setImageUrl] = useState("");
 
   useEffect(() => {
-    setImageUrl(`https://picsum.photos/seed/${Date.now()}/800/600`);
+    setImageUrl(`https://picsum.photos/seed/${Date.now()}/1200/600`);
   }, []);
 
   const handleStartClick = () => {
     if (isAuthenticated) {
       router.push("/dashboard");
     } else {
-      router.push("/login");
+      router.push("/sign-in");
     }
   };
 
@@ -35,8 +35,8 @@ export function HeroSection() {
       id="hero"
       className="container mx-auto px-4 py-16 md:py-24 lg:py-32"
     >
-      <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center">
-        <div className="flex flex-col gap-6">
+      <div className="flex flex-col items-center gap-12">
+        <div className="flex flex-col items-center gap-6 text-center max-w-3xl">
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl md:text-6xl">
             AI가 풀어주는 당신의 사주팔자
           </h1>
@@ -60,7 +60,7 @@ export function HeroSection() {
           </div>
         </div>
 
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl shadow-2xl">
+        <div className="relative w-full max-w-4xl aspect-[2/1] overflow-hidden rounded-2xl shadow-2xl">
           {imageUrl && (
             <Image
               src={imageUrl}
@@ -69,7 +69,7 @@ export function HeroSection() {
               className="object-cover"
               priority
               onError={(e) => {
-                e.currentTarget.src = "https://picsum.photos/800/600";
+                e.currentTarget.src = "https://picsum.photos/1200/600";
               }}
             />
           )}

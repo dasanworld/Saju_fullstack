@@ -12,7 +12,6 @@ export const useCurrentUser = () => {
       status: context.status,
       isAuthenticated: context.isAuthenticated,
       isLoading: context.isLoading,
-      refresh: context.refresh,
     }),
     [context]
   );

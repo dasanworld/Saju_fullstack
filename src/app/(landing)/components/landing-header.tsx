@@ -32,7 +32,7 @@ export function LandingHeader() {
     if (isAuthenticated) {
       router.push("/dashboard");
     } else {
-      router.push("/login");
+      router.push("/sign-in");
     }
   };
 

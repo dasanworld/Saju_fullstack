@@ -16,7 +16,7 @@ export function PricingSection() {
     if (isAuthenticated) {
       router.push("/dashboard");
     } else {
-      router.push("/login");
+      router.push("/sign-in");
     }
   };
 
@@ -24,7 +24,7 @@ export function PricingSection() {
     if (isAuthenticated) {
       router.push("/subscription");
     } else {
-      router.push("/login");
+      router.push("/sign-in");
     }
   };
 
