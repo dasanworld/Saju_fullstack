@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { getAuth } from "@hono/clerk-auth";
 import type { AppEnv } from "@/backend/hono/context";
 import { respond, failure } from "@/backend/http/response";
 import {
@@ -9,16 +10,15 @@ import {
 } from "./schema";
 import { createTest, getTestList, getTestDetail } from "./service";
 import { testErrorCodes } from "./error";
-import { currentUser } from "@clerk/nextjs/server";
 
 export const registerTestRoutes = (app: Hono<AppEnv>) => {
   app.post(
     "/api/test/create",
     zValidator("json", createTestRequestSchema) as never,
     async (c) => {
-      const user = await currentUser();
+      const auth = getAuth(c);
 
-      if (!user) {
+      if (!auth?.userId) {
         return respond(
           c,
           failure(401, testErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -29,7 +29,7 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
       const { data: dbUser } = await supabase
         .from("users")
         .select("id")
-        .eq("clerk_user_id", user.id)
+        .eq("clerk_user_id", auth.userId)
         .single();
 
       if (!dbUser) {
@@ -47,9 +47,9 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
   );
 
   app.get("/api/test/list", async (c) => {
-    const user = await currentUser();
+    const auth = getAuth(c);
 
-    if (!user) {
+    if (!auth?.userId) {
       return respond(
         c,
         failure(401, testErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -60,7 +60,7 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
     const { data: dbUser } = await supabase
       .from("users")
       .select("id")
-      .eq("clerk_user_id", user.id)
+      .eq("clerk_user_id", auth.userId)
       .single();
 
     if (!dbUser) {
@@ -80,9 +80,9 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/api/test/:id", async (c) => {
-    const user = await currentUser();
+    const auth = getAuth(c);
 
-    if (!user) {
+    if (!auth?.userId) {
       return respond(
         c,
         failure(401, testErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -93,7 +93,7 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
     const { data: dbUser } = await supabase
       .from("users")
       .select("id")
-      .eq("clerk_user_id", user.id)
+      .eq("clerk_user_id", auth.userId)
       .single();
 
     if (!dbUser) {

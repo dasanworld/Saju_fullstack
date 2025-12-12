@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import { getAuth } from "@hono/clerk-auth";
 import type { AppEnv } from "@/backend/hono/context";
 import { respond, failure } from "@/backend/http/response";
 import { createSubscriptionRequestSchema } from "./schema";
@@ -10,13 +11,12 @@ import {
   reactivateSubscription,
 } from "./service";
 import { subscriptionErrorCodes } from "./error";
-import { currentUser } from "@clerk/nextjs/server";
 
 export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
   app.get("/api/subscription/status", async (c) => {
-    const user = await currentUser();
+    const auth = getAuth(c);
 
-    if (!user) {
+    if (!auth?.userId) {
       return respond(
         c,
         failure(401, subscriptionErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -27,7 +27,7 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     const { data: dbUser } = await supabase
       .from("users")
       .select("id")
-      .eq("clerk_user_id", user.id)
+      .eq("clerk_user_id", auth.userId)
       .single();
 
     if (!dbUser) {
@@ -44,9 +44,9 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     "/api/subscription/create",
     zValidator("json", createSubscriptionRequestSchema) as never,
     async (c) => {
-      const user = await currentUser();
+      const auth = getAuth(c);
 
-      if (!user) {
+      if (!auth?.userId) {
         return respond(
           c,
           failure(401, subscriptionErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -57,7 +57,7 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
       const { data: dbUser } = await supabase
         .from("users")
         .select("id, email")
-        .eq("clerk_user_id", user.id)
+        .eq("clerk_user_id", auth.userId)
         .single();
 
       if (!dbUser) {
@@ -78,9 +78,9 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
   );
 
   app.post("/api/subscription/cancel", async (c) => {
-    const user = await currentUser();
+    const auth = getAuth(c);
 
-    if (!user) {
+    if (!auth?.userId) {
       return respond(
         c,
         failure(401, subscriptionErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -91,7 +91,7 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     const { data: dbUser } = await supabase
       .from("users")
       .select("id")
-      .eq("clerk_user_id", user.id)
+      .eq("clerk_user_id", auth.userId)
       .single();
 
     if (!dbUser) {
@@ -105,9 +105,9 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.post("/api/subscription/reactivate", async (c) => {
-    const user = await currentUser();
+    const auth = getAuth(c);
 
-    if (!user) {
+    if (!auth?.userId) {
       return respond(
         c,
         failure(401, subscriptionErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
@@ -118,14 +118,14 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     const { data: dbUser } = await supabase
       .from("users")
       .select("id")
-      .eq("clerk_user_id", user.id)
+      .eq("clerk_user_id", auth.userId)
       .single();
 
     if (!dbUser) {
       return respond(
         c,
         failure(404, subscriptionErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
-        );
+      );
     }
 
     return respond(c, await reactivateSubscription(supabase, dbUser.id));

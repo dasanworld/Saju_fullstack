@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { clerkMiddleware } from '@hono/clerk-auth';
 import { errorBoundary } from '@/backend/middleware/error';
 import { withAppContext } from '@/backend/middleware/context';
 import { withSupabase } from '@/backend/middleware/supabase';
@@ -20,6 +21,10 @@ export const createHonoApp = () => {
 
   app.use('*', errorBoundary());
   app.use('*', withAppContext());
+  app.use('*', clerkMiddleware({
+    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }));
   app.use('*', withSupabase());
 
   registerExampleRoutes(app);
