@@ -10,6 +10,7 @@ import {
 } from "./schema";
 import { createTest, getTestList, getTestDetail } from "./service";
 import { testErrorCodes } from "./error";
+import { getOrCreateUser } from "@/features/auth/backend/helpers";
 
 export const registerTestRoutes = (app: Hono<AppEnv>) => {
   app.post(
@@ -26,23 +27,20 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
       }
 
       const supabase = c.get("supabase");
-      const { data: dbUser } = await supabase
-        .from("users")
-        .select("id")
-        .eq("clerk_user_id", auth.userId)
-        .single();
+      const logger = c.get("logger");
+      const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-      if (!dbUser) {
+      if (!userResult.success) {
         return respond(
           c,
-          failure(404, testErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+          failure(404, testErrorCodes.INTERNAL_ERROR, userResult.error)
         );
       }
 
       const body = await c.req.json();
       const parsed = createTestRequestSchema.parse(body);
 
-      return respond(c, await createTest(c, dbUser.id, parsed));
+      return respond(c, await createTest(c, userResult.user.id, parsed));
     }
   );
 
@@ -57,16 +55,13 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
     }
 
     const supabase = c.get("supabase");
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("clerk_user_id", auth.userId)
-      .single();
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-    if (!dbUser) {
+    if (!userResult.success) {
       return respond(
         c,
-        failure(404, testErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+        failure(404, testErrorCodes.INTERNAL_ERROR, userResult.error)
       );
     }
 
@@ -76,7 +71,7 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
       offset: c.req.query("offset"),
     });
 
-    return respond(c, await getTestList(supabase, dbUser.id, query));
+    return respond(c, await getTestList(supabase, userResult.user.id, query));
   });
 
   app.get("/api/test/:id", async (c) => {
@@ -90,21 +85,18 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
     }
 
     const supabase = c.get("supabase");
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("clerk_user_id", auth.userId)
-      .single();
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-    if (!dbUser) {
+    if (!userResult.success) {
       return respond(
         c,
-        failure(404, testErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+        failure(404, testErrorCodes.INTERNAL_ERROR, userResult.error)
       );
     }
 
     const params = testParamsSchema.parse({ id: c.req.param("id") });
 
-    return respond(c, await getTestDetail(supabase, dbUser.id, params.id));
+    return respond(c, await getTestDetail(supabase, userResult.user.id, params.id));
   });
 };

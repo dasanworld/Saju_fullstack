@@ -11,6 +11,7 @@ import {
   reactivateSubscription,
 } from "./service";
 import { subscriptionErrorCodes } from "./error";
+import { getOrCreateUser } from "@/features/auth/backend/helpers";
 
 export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
   app.get("/api/subscription/status", async (c) => {
@@ -24,20 +25,17 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     }
 
     const supabase = c.get("supabase");
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("clerk_user_id", auth.userId)
-      .single();
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-    if (!dbUser) {
+    if (!userResult.success) {
       return respond(
         c,
-        failure(404, subscriptionErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+        failure(404, subscriptionErrorCodes.INTERNAL_ERROR, userResult.error)
       );
     }
 
-    return respond(c, await getSubscriptionStatus(supabase, dbUser.id));
+    return respond(c, await getSubscriptionStatus(supabase, userResult.user.id));
   });
 
   app.post(
@@ -54,16 +52,13 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
       }
 
       const supabase = c.get("supabase");
-      const { data: dbUser } = await supabase
-        .from("users")
-        .select("id, email")
-        .eq("clerk_user_id", auth.userId)
-        .single();
+      const logger = c.get("logger");
+      const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-      if (!dbUser) {
+      if (!userResult.success) {
         return respond(
           c,
-          failure(404, subscriptionErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+          failure(404, subscriptionErrorCodes.INTERNAL_ERROR, userResult.error)
         );
       }
 
@@ -72,7 +67,7 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
 
       return respond(
         c,
-        await createProSubscription(c, dbUser.id, dbUser.email, parsed)
+        await createProSubscription(c, userResult.user.id, userResult.user.email, parsed)
       );
     }
   );
@@ -88,20 +83,17 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     }
 
     const supabase = c.get("supabase");
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("clerk_user_id", auth.userId)
-      .single();
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-    if (!dbUser) {
+    if (!userResult.success) {
       return respond(
         c,
-        failure(404, subscriptionErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+        failure(404, subscriptionErrorCodes.INTERNAL_ERROR, userResult.error)
       );
     }
 
-    return respond(c, await cancelSubscription(supabase, dbUser.id));
+    return respond(c, await cancelSubscription(supabase, userResult.user.id));
   });
 
   app.post("/api/subscription/reactivate", async (c) => {
@@ -115,19 +107,16 @@ export const registerSubscriptionRoutes = (app: Hono<AppEnv>) => {
     }
 
     const supabase = c.get("supabase");
-    const { data: dbUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("clerk_user_id", auth.userId)
-      .single();
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
 
-    if (!dbUser) {
+    if (!userResult.success) {
       return respond(
         c,
-        failure(404, subscriptionErrorCodes.INTERNAL_ERROR, "사용자를 찾을 수 없습니다")
+        failure(404, subscriptionErrorCodes.INTERNAL_ERROR, userResult.error)
       );
     }
 
-    return respond(c, await reactivateSubscription(supabase, dbUser.id));
+    return respond(c, await reactivateSubscription(supabase, userResult.user.id));
   });
 };
