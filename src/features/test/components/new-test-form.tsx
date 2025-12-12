@@ -1,10 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
 import { BirthDatePicker } from "./birth-date-picker";
 import { BirthTimePicker } from "./birth-time-picker";
 import { GenderSelector } from "./gender-selector";
+import { TestResultDialog } from "./test-result-dialog";
 import { useCreateTest } from "../hooks/useCreateTest";
 
 const formSchema = z.object({
@@ -38,9 +38,16 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+type DialogResult = {
+  type: "success" | "error" | "quota_exceeded";
+  testId?: string;
+  errorMessage?: string;
+  errorCode?: string;
+} | null;
+
 export const NewTestForm = () => {
-  const router = useRouter();
-  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogResult, setDialogResult] = useState<DialogResult>(null);
   const { mutate: createTest, isPending } = useCreateTest();
 
   const form = useForm<FormData>({
@@ -66,34 +73,29 @@ export const NewTestForm = () => {
 
     createTest(requestData, {
       onSuccess: (response) => {
-        toast({
-          title: "분석이 완료되었습니다!",
-          description: "결과 페이지로 이동합니다.",
+        setDialogResult({
+          type: "success",
+          testId: response.test_id,
         });
-        router.push(`/analysis/${response.test_id}`);
+        setDialogOpen(true);
       },
       onError: (error: any) => {
         const message =
           error.response?.data?.message || "검사 생성에 실패했습니다";
+        const errorCode = error.response?.data?.errorCode;
 
         if (error.response?.status === 403) {
-          toast({
-            title: "검사 횟수를 모두 사용했습니다",
-            description:
-              "Pro 플랜으로 업그레이드하면 월 10회 검사를 이용하실 수 있습니다.",
-            action: (
-              <Button variant="outline" onClick={() => router.push("/subscription")}>
-                Pro로 업그레이드
-              </Button>
-            ),
+          setDialogResult({
+            type: "quota_exceeded",
           });
         } else {
-          toast({
-            title: "오류가 발생했습니다",
-            description: message,
-            variant: "destructive",
+          setDialogResult({
+            type: "error",
+            errorMessage: message,
+            errorCode: errorCode,
           });
         }
+        setDialogOpen(true);
       },
     });
   };
@@ -190,6 +192,12 @@ export const NewTestForm = () => {
           )}
         </Button>
       </form>
+
+      <TestResultDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        result={dialogResult}
+      />
     </Form>
   );
 };
