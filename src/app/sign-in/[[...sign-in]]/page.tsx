@@ -19,7 +19,11 @@ export default function SignInPage({ params }: SignInPageProps) {
     }
   }, [isLoaded, isSignedIn, router]);
 
-  if (!isLoaded || isSignedIn) {
+  if (!isLoaded) {
+    return null;
+  }
+
+  if (isSignedIn) {
     return null;
   }
 

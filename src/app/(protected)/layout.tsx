@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
+import { useUser, RedirectToSignIn } from "@clerk/nextjs";
 import { GlobalNav } from "@/components/layout/global-nav";
 import { NavFooter } from "@/components/layout/nav-footer";
 
@@ -10,9 +10,9 @@ type ProtectedLayoutProps = {
 };
 
 export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
-  const { isAuthenticated, isLoading } = useCurrentUser();
+  const { isLoaded, isSignedIn } = useUser();
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -20,8 +20,8 @@ export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
+  if (!isSignedIn) {
+    return <RedirectToSignIn />;
   }
 
   return (
