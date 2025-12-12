@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -31,17 +31,29 @@ export function PaymentDialog({
 }: PaymentDialogProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const widgetsRef = useRef<any>(null);
-  const paymentMethodContainerRef = useRef<HTMLDivElement>(null);
-  const agreementContainerRef = useRef<HTMLDivElement>(null);
+  const initAttemptedRef = useRef(false);
+
+  const handleError = useCallback((error: Error) => {
+    onError(error);
+  }, [onError]);
 
   useEffect(() => {
     if (!open) {
       widgetsRef.current = null;
+      initAttemptedRef.current = false;
+      setIsReady(false);
+      setIsLoading(true);
+      return;
+    }
+
+    if (initAttemptedRef.current) {
       return;
     }
 
     const initPaymentWidget = async () => {
+      initAttemptedRef.current = true;
       setIsLoading(true);
 
       try {
@@ -50,30 +62,47 @@ export function PaymentDialog({
           throw new Error("NEXT_PUBLIC_TOSS_CLIENT_KEY is not defined");
         }
 
-        // V2 SDK 로드 (CDN)
-        const existingScript = document.querySelector(
-          'script[src="https://js.tosspayments.com/v2/standard"]'
-        );
+        // DOM이 렌더링될 때까지 대기
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
-        if (!existingScript) {
-          const script = document.createElement("script");
-          script.src = "https://js.tosspayments.com/v2/standard";
-          script.async = true;
+        // selector가 존재하는지 확인
+        const paymentContainer = document.getElementById("payment-method-container");
+        const agreementContainer = document.getElementById("agreement-container");
 
-          await new Promise<void>((resolve, reject) => {
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Failed to load TossPayments SDK"));
-            document.head.appendChild(script);
-          });
+        if (!paymentContainer || !agreementContainer) {
+          throw new Error("결제 위젯 컨테이너를 찾을 수 없습니다");
         }
 
-        // SDK 초기화 대기
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // V2 SDK 로드 (CDN)
+        let TossPayments = (window as any).TossPayments;
 
-        const TossPayments = (window as any).TossPayments;
+        if (!TossPayments) {
+          const existingScript = document.querySelector(
+            'script[src="https://js.tosspayments.com/v2/standard"]'
+          );
+
+          if (!existingScript) {
+            const script = document.createElement("script");
+            script.src = "https://js.tosspayments.com/v2/standard";
+            script.async = true;
+
+            await new Promise<void>((resolve, reject) => {
+              script.onload = () => resolve();
+              script.onerror = () => reject(new Error("Failed to load TossPayments SDK"));
+              document.head.appendChild(script);
+            });
+          }
+
+          // SDK 로드 대기
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          TossPayments = (window as any).TossPayments;
+        }
+
         if (!TossPayments) {
           throw new Error("TossPayments SDK not loaded");
         }
+
+        console.log("TossPayments SDK loaded, initializing...");
 
         const tossPayments = TossPayments(clientKey);
         const widgets = tossPayments.widgets({ customerKey });
@@ -84,31 +113,34 @@ export function PaymentDialog({
           value: SUBSCRIPTION_AMOUNT,
         });
 
+        console.log("Amount set, rendering widgets...");
+
         // 결제 수단 및 약관 UI 렌더링
-        if (paymentMethodContainerRef.current && agreementContainerRef.current) {
-          await Promise.all([
-            widgets.renderPaymentMethods({
-              selector: "#payment-method-container",
-              variantKey: "DEFAULT",
-            }),
-            widgets.renderAgreement({
-              selector: "#agreement-container",
-              variantKey: "AGREEMENT",
-            }),
-          ]);
-        }
+        await Promise.all([
+          widgets.renderPaymentMethods({
+            selector: "#payment-method-container",
+            variantKey: "DEFAULT",
+          }),
+          widgets.renderAgreement({
+            selector: "#agreement-container",
+            variantKey: "AGREEMENT",
+          }),
+        ]);
+
+        console.log("Widgets rendered successfully");
 
         widgetsRef.current = widgets;
+        setIsReady(true);
         setIsLoading(false);
       } catch (error) {
         console.error("Payment widget initialization failed:", error);
         setIsLoading(false);
-        onError(error instanceof Error ? error : new Error("결제 위젯 초기화 실패"));
+        handleError(error instanceof Error ? error : new Error("결제 위젯 초기화 실패"));
       }
     };
 
     initPaymentWidget();
-  }, [open, customerKey, onError]);
+  }, [open, customerKey, handleError]);
 
   const handlePayment = async () => {
     if (!widgetsRef.current) {
@@ -176,14 +208,12 @@ export function PaymentDialog({
           {/* 결제 수단 선택 영역 */}
           <div
             id="payment-method-container"
-            ref={paymentMethodContainerRef}
             className={isLoading ? "hidden" : ""}
           />
 
           {/* 약관 동의 영역 */}
           <div
             id="agreement-container"
-            ref={agreementContainerRef}
             className={isLoading ? "hidden" : "mt-4"}
           />
         </div>
@@ -191,7 +221,7 @@ export function PaymentDialog({
         {/* 결제 버튼 */}
         <Button
           onClick={handlePayment}
-          disabled={isLoading || isProcessing}
+          disabled={isLoading || isProcessing || !isReady}
           className="w-full"
           size="lg"
         >
@@ -200,6 +230,8 @@ export function PaymentDialog({
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               결제 진행 중...
             </>
+          ) : isLoading ? (
+            "로딩 중..."
           ) : (
             `${SUBSCRIPTION_AMOUNT.toLocaleString()}원 결제하기`
           )}
