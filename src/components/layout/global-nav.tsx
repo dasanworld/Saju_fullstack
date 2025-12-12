@@ -23,7 +23,7 @@ export function GlobalNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="w-64 h-screen border-r flex flex-col bg-background">
+    <nav className="h-full flex flex-col">
       <div className="p-6 border-b">
         <div className="flex items-center gap-2">
           <Sparkles className="w-6 h-6 text-primary" />

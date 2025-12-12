@@ -3,7 +3,6 @@
 import { type ReactNode } from "react";
 import { useUser, RedirectToSignIn } from "@clerk/nextjs";
 import { GlobalNav } from "@/components/layout/global-nav";
-import { NavFooter } from "@/components/layout/nav-footer";
 
 type ProtectedLayoutProps = {
   children: ReactNode;
@@ -26,9 +25,8 @@ export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r bg-background">
+      <aside className="fixed inset-y-0 left-0 z-40 w-64 border-r bg-background">
         <GlobalNav />
-        <NavFooter />
       </aside>
       <main className="flex-1 pl-64">
         {children}
