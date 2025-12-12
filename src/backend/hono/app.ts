@@ -7,6 +7,7 @@ import { registerExampleRoutes } from '@/features/example/backend/route';
 import { registerAuthRoutes } from '@/features/auth/backend/route';
 import { registerTestRoutes } from '@/features/test/backend/route';
 import { registerSubscriptionRoutes } from '@/features/subscription/backend/route';
+import { registerPaymentsRoutes } from '@/features/payments/backend/route';
 import { registerCronRoutes } from '@/features/cron/backend/route';
 import type { AppEnv } from '@/backend/hono/context';
 
@@ -31,6 +32,7 @@ export const createHonoApp = () => {
   registerAuthRoutes(app);
   registerTestRoutes(app);
   registerSubscriptionRoutes(app);
+  registerPaymentsRoutes(app);
   registerCronRoutes(app);
 
   if (process.env.NODE_ENV === 'production') {
