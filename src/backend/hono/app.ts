@@ -3,12 +3,16 @@ import { errorBoundary } from '@/backend/middleware/error';
 import { withAppContext } from '@/backend/middleware/context';
 import { withSupabase } from '@/backend/middleware/supabase';
 import { registerExampleRoutes } from '@/features/example/backend/route';
+import { registerAuthRoutes } from '@/features/auth/backend/route';
+import { registerTestRoutes } from '@/features/test/backend/route';
+import { registerSubscriptionRoutes } from '@/features/subscription/backend/route';
+import { registerCronRoutes } from '@/features/cron/backend/route';
 import type { AppEnv } from '@/backend/hono/context';
 
 let singletonApp: Hono<AppEnv> | null = null;
 
 export const createHonoApp = () => {
-  if (singletonApp) {
+  if (singletonApp && process.env.NODE_ENV === 'production') {
     return singletonApp;
   }
 
@@ -19,8 +23,14 @@ export const createHonoApp = () => {
   app.use('*', withSupabase());
 
   registerExampleRoutes(app);
+  registerAuthRoutes(app);
+  registerTestRoutes(app);
+  registerSubscriptionRoutes(app);
+  registerCronRoutes(app);
 
-  singletonApp = app;
+  if (process.env.NODE_ENV === 'production') {
+    singletonApp = app;
+  }
 
   return app;
 };

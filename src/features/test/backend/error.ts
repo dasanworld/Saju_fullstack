@@ -1,0 +1,10 @@
+export const testErrorCodes = {
+  INSUFFICIENT_TESTS: "INSUFFICIENT_TESTS",
+  TEST_CREATE_FAILED: "TEST_CREATE_FAILED",
+  GEMINI_API_FAILED: "GEMINI_API_FAILED",
+  TEST_NOT_FOUND: "TEST_NOT_FOUND",
+  TEST_LIST_FAILED: "TEST_LIST_FAILED",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+} as const;
+
+export type TestErrorCode = (typeof testErrorCodes)[keyof typeof testErrorCodes];
