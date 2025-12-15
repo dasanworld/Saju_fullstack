@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,7 +22,7 @@ import { BirthDatePicker } from "./birth-date-picker";
 import { BirthTimePicker } from "./birth-time-picker";
 import { GenderSelector } from "./gender-selector";
 import { TestResultDialog } from "./test-result-dialog";
-import { useCreateTest } from "../hooks/useCreateTest";
+import { useInitTest } from "../hooks/useInitTest";
 
 const formSchema = z.object({
   name: z
@@ -46,9 +47,10 @@ type DialogResult = {
 } | null;
 
 export const NewTestForm = () => {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogResult, setDialogResult] = useState<DialogResult>(null);
-  const { mutate: createTest, isPending } = useCreateTest();
+  const { mutate: initTest, isPending } = useInitTest();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -71,13 +73,9 @@ export const NewTestForm = () => {
       gender: data.gender,
     };
 
-    createTest(requestData, {
+    initTest(requestData, {
       onSuccess: (response) => {
-        setDialogResult({
-          type: "success",
-          testId: response.test_id,
-        });
-        setDialogOpen(true);
+        router.push(`/analysis/${response.test_id}?stream=true&model=${response.model}`);
       },
       onError: (error: any) => {
         const message =

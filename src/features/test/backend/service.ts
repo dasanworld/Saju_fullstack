@@ -5,6 +5,7 @@ import type { GeminiModel } from "@/lib/gemini/types";
 import type {
   CreateTestRequest,
   CreateTestResponse,
+  InitTestResponse,
   TestListQuery,
   TestListResponse,
   TestDetailResponse,
@@ -167,11 +168,130 @@ export const getTestDetail = async (
       birth_date: data.birth_date,
       birth_time: data.birth_time,
       gender: data.gender,
-      analysis_result: data.analysis_result || "",
+      analysis_result: data.analysis_result,
       created_at: data.created_at,
     };
 
     return success(response);
+  } catch (error) {
+    return failure(500, testErrorCodes.INTERNAL_ERROR, "서버 오류");
+  }
+};
+
+export const initTest = async (
+  c: AppContext,
+  userId: string,
+  input: CreateTestRequest
+) => {
+  const supabase = c.get("supabase");
+  const logger = c.get("logger");
+
+  try {
+    const { data: subscription, error: subError } = await supabase
+      .from("subscriptions")
+      .select("plan, remaining_tests")
+      .eq("user_id", userId)
+      .single();
+
+    if (subError || !subscription) {
+      logger.error("Subscription not found", subError);
+      return failure(404, testErrorCodes.INTERNAL_ERROR, "구독 정보를 찾을 수 없습니다");
+    }
+
+    if (subscription.remaining_tests <= 0) {
+      return failure(
+        403,
+        testErrorCodes.INSUFFICIENT_TESTS,
+        "검사 횟수를 모두 사용했습니다"
+      );
+    }
+
+    const { data: test, error: testError } = await supabase
+      .from("tests")
+      .insert({
+        user_id: userId,
+        name: input.name,
+        birth_date: input.birth_date,
+        birth_time: input.birth_time,
+        gender: input.gender,
+      })
+      .select()
+      .single();
+
+    if (testError) {
+      logger.error("Test creation failed", testError);
+      return failure(500, testErrorCodes.TEST_CREATE_FAILED, "검사 생성 실패");
+    }
+
+    const { error: decrementError } = await supabase
+      .from("subscriptions")
+      .update({ remaining_tests: subscription.remaining_tests - 1 })
+      .eq("user_id", userId);
+
+    if (decrementError) {
+      logger.error("Failed to decrement remaining_tests", decrementError);
+    }
+
+    const model: GeminiModel =
+      subscription.plan === "pro" ? "gemini-1.5-pro" : "gemini-2.0-flash";
+
+    logger.info("Test initialized", { test_id: test.id, model });
+
+    const response: InitTestResponse = {
+      test_id: test.id,
+      model,
+    };
+
+    return success(response);
+  } catch (error) {
+    logger.error("Unexpected error", error);
+    return failure(500, testErrorCodes.INTERNAL_ERROR, "서버 오류");
+  }
+};
+
+export const getTestForStream = async (
+  supabase: SupabaseClient,
+  userId: string,
+  testId: string
+) => {
+  try {
+    const { data, error } = await supabase
+      .from("tests")
+      .select("id, name, birth_date, birth_time, gender, analysis_result")
+      .eq("id", testId)
+      .eq("user_id", userId)
+      .single();
+
+    if (error || !data) {
+      return failure(404, testErrorCodes.TEST_NOT_FOUND, "검사를 찾을 수 없습니다");
+    }
+
+    if (data.analysis_result) {
+      return failure(400, testErrorCodes.ANALYSIS_ALREADY_EXISTS, "이미 분석이 완료되었습니다");
+    }
+
+    return success(data);
+  } catch (error) {
+    return failure(500, testErrorCodes.INTERNAL_ERROR, "서버 오류");
+  }
+};
+
+export const updateTestAnalysis = async (
+  supabase: SupabaseClient,
+  testId: string,
+  analysisResult: string
+) => {
+  try {
+    const { error } = await supabase
+      .from("tests")
+      .update({ analysis_result: analysisResult })
+      .eq("id", testId);
+
+    if (error) {
+      return failure(500, testErrorCodes.INTERNAL_ERROR, "분석 결과 저장 실패");
+    }
+
+    return success({ updated: true });
   } catch (error) {
     return failure(500, testErrorCodes.INTERNAL_ERROR, "서버 오류");
   }

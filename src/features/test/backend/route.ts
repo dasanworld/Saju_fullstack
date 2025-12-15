@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { stream } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import { getAuth } from "@hono/clerk-auth";
 import type { AppEnv } from "@/backend/hono/context";
@@ -8,9 +9,18 @@ import {
   testListQuerySchema,
   testParamsSchema,
 } from "./schema";
-import { createTest, getTestList, getTestDetail } from "./service";
+import {
+  createTest,
+  getTestList,
+  getTestDetail,
+  initTest,
+  getTestForStream,
+  updateTestAnalysis,
+} from "./service";
 import { testErrorCodes } from "./error";
 import { getOrCreateUser } from "@/features/auth/backend/helpers";
+import { streamSajuAnalysis } from "@/lib/gemini/client";
+import type { GeminiModel } from "@/lib/gemini/types";
 
 export const registerTestRoutes = (app: Hono<AppEnv>) => {
   app.post(
@@ -98,5 +108,104 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
     const params = testParamsSchema.parse({ id: c.req.param("id") });
 
     return respond(c, await getTestDetail(supabase, userResult.user.id, params.id));
+  });
+
+  app.post(
+    "/api/test/init",
+    zValidator("json", createTestRequestSchema) as never,
+    async (c) => {
+      const auth = getAuth(c);
+
+      if (!auth?.userId) {
+        return respond(
+          c,
+          failure(401, testErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
+        );
+      }
+
+      const supabase = c.get("supabase");
+      const logger = c.get("logger");
+      const userResult = await getOrCreateUser(supabase, logger, auth.userId);
+
+      if (!userResult.success) {
+        return respond(
+          c,
+          failure(404, testErrorCodes.INTERNAL_ERROR, userResult.error)
+        );
+      }
+
+      const body = await c.req.json();
+      const parsed = createTestRequestSchema.parse(body);
+
+      return respond(c, await initTest(c, userResult.user.id, parsed));
+    }
+  );
+
+  app.post("/api/test/stream/:id", async (c) => {
+    const auth = getAuth(c);
+
+    if (!auth?.userId) {
+      return c.json({ success: false, message: "인증이 필요합니다" }, 401);
+    }
+
+    const supabase = c.get("supabase");
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
+
+    if (!userResult.success) {
+      return c.json({ success: false, message: userResult.error }, 404);
+    }
+
+    const testId = c.req.param("id");
+    const params = testParamsSchema.parse({ id: testId });
+
+    const testResult = await getTestForStream(supabase, userResult.user.id, params.id);
+
+    if (!testResult.ok) {
+      const errorResult = testResult as { ok: false; status: number; error: { message: string } };
+      return c.json(
+        { success: false, message: errorResult.error.message },
+        errorResult.status as any
+      );
+    }
+
+    const testData = testResult.data;
+    const body = await c.req.json().catch(() => ({}));
+    const model = (body.model || "gemini-2.0-flash") as GeminiModel;
+
+    c.header("Content-Type", "text/event-stream");
+    c.header("Cache-Control", "no-cache");
+    c.header("Connection", "keep-alive");
+
+    return stream(c, async (streamWriter) => {
+      let fullText = "";
+
+      try {
+        const result = await streamSajuAnalysis(
+          {
+            name: testData.name,
+            birth_date: testData.birth_date,
+            birth_time: testData.birth_time,
+            gender: testData.gender,
+          },
+          model
+        );
+
+        for await (const chunk of result.textStream) {
+          fullText += chunk;
+          await streamWriter.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        }
+
+        await updateTestAnalysis(supabase, params.id, fullText);
+        await streamWriter.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+
+        logger.info("Stream completed", { test_id: params.id });
+      } catch (error) {
+        logger.error("Stream error", error);
+        await streamWriter.write(
+          `data: ${JSON.stringify({ error: "스트리밍 중 오류가 발생했습니다" })}\n\n`
+        );
+      }
+    });
   });
 };

@@ -22,6 +22,11 @@ export const createTestResponseSchema = z.object({
   analysis_result: z.string(),
 });
 
+export const initTestResponseSchema = z.object({
+  test_id: z.string().uuid(),
+  model: z.enum(["gemini-2.0-flash", "gemini-1.5-pro"]),
+});
+
 export const testListItemSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -42,12 +47,13 @@ export const testDetailResponseSchema = z.object({
   birth_date: z.string(),
   birth_time: z.string().nullable(),
   gender: z.enum(["male", "female"]),
-  analysis_result: z.string(),
+  analysis_result: z.string().nullable(),
   created_at: z.string(),
 });
 
 export type CreateTestRequest = z.infer<typeof createTestRequestSchema>;
 export type TestListQuery = z.infer<typeof testListQuerySchema>;
 export type CreateTestResponse = z.infer<typeof createTestResponseSchema>;
+export type InitTestResponse = z.infer<typeof initTestResponseSchema>;
 export type TestListResponse = z.infer<typeof testListResponseSchema>;
 export type TestDetailResponse = z.infer<typeof testDetailResponseSchema>;
