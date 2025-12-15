@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,7 +22,9 @@ import { BirthDatePicker } from "./birth-date-picker";
 import { BirthTimePicker } from "./birth-time-picker";
 import { GenderSelector } from "./gender-selector";
 import { TestResultDialog } from "./test-result-dialog";
+import { StreamingDialog } from "./streaming-dialog";
 import { useInitTest } from "../hooks/useInitTest";
+import { useStreamAnalysis } from "../hooks/useStreamAnalysis";
 
 const formSchema = z.object({
   name: z
@@ -50,7 +52,11 @@ export const NewTestForm = () => {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogResult, setDialogResult] = useState<DialogResult>(null);
+  const [streamingDialogOpen, setStreamingDialogOpen] = useState(false);
+  const [currentTestId, setCurrentTestId] = useState<string | null>(null);
+
   const { mutate: initTest, isPending } = useInitTest();
+  const { streamedText, status, error: streamError, fallbackMessage, startStream } = useStreamAnalysis();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -65,6 +71,30 @@ export const NewTestForm = () => {
 
   const birthTimeUnknown = form.watch("birth_time_unknown");
 
+  useEffect(() => {
+    if (status === "completed" && currentTestId) {
+      const timer = setTimeout(() => {
+        setStreamingDialogOpen(false);
+        router.push(`/analysis/${currentTestId}`);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [status, currentTestId, router]);
+
+  useEffect(() => {
+    if (status === "error" && streamError) {
+      const timer = setTimeout(() => {
+        setStreamingDialogOpen(false);
+        setDialogResult({
+          type: "error",
+          errorMessage: streamError,
+        });
+        setDialogOpen(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, streamError]);
+
   const onSubmit = (data: FormData) => {
     const requestData = {
       name: data.name,
@@ -75,7 +105,9 @@ export const NewTestForm = () => {
 
     initTest(requestData, {
       onSuccess: (response) => {
-        router.push(`/analysis/${response.test_id}?stream=true&model=${response.model}`);
+        setCurrentTestId(response.test_id);
+        setStreamingDialogOpen(true);
+        startStream(response.test_id, response.model);
       },
       onError: (error: any) => {
         const message =
@@ -97,6 +129,8 @@ export const NewTestForm = () => {
       },
     });
   };
+
+  const isStreaming = status === "streaming" || status === "idle";
 
   return (
     <Form {...form}>
@@ -179,11 +213,11 @@ export const NewTestForm = () => {
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={isPending}>
+        <Button type="submit" className="w-full" disabled={isPending || streamingDialogOpen}>
           {isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              AI가 분석하고 있습니다...
+              검사를 준비하고 있습니다...
             </>
           ) : (
             "검사 시작"
@@ -195,6 +229,14 @@ export const NewTestForm = () => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         result={dialogResult}
+      />
+
+      <StreamingDialog
+        open={streamingDialogOpen}
+        streamedText={streamedText}
+        isStreaming={isStreaming}
+        fallbackMessage={fallbackMessage}
+        error={streamError}
       />
     </Form>
   );
