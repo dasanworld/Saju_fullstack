@@ -188,32 +188,51 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
         gender: testData.gender,
       };
 
-      const processStream = async (textStream: AsyncIterable<string>) => {
-        for await (const chunk of textStream) {
-          fullText += chunk;
-          await streamWriter.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+      const runGeminiStream = async (): Promise<{ success: boolean; error?: any }> => {
+        try {
+          logger.info("Starting Gemini stream", { test_id: params.id });
+          const geminiResult = await streamSajuAnalysis(sajuInput, model);
+
+          for await (const chunk of geminiResult.textStream) {
+            fullText += chunk;
+            await streamWriter.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+          }
+
+          await geminiResult.response;
+
+          if (fullText.length === 0) {
+            return { success: false, error: { message: "No content generated" } };
+          }
+
+          return { success: true };
+        } catch (error) {
+          return { success: false, error };
         }
       };
 
-      try {
-        logger.info("Starting Gemini stream", { test_id: params.id });
-        const geminiResult = await streamSajuAnalysis(sajuInput, model);
-        await processStream(geminiResult.textStream);
+      const geminiStreamResult = await runGeminiStream();
 
+      if (geminiStreamResult.success) {
         await updateTestAnalysis(supabase, params.id, fullText);
         await streamWriter.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         logger.info("Stream completed with Gemini", { test_id: params.id });
-      } catch (geminiError: any) {
+      } else {
+        const geminiError = geminiStreamResult.error;
+        const errorMessage = geminiError?.message || "";
+        const errorBody = geminiError?.responseBody || geminiError?.lastError?.responseBody || "";
+        const statusCode = geminiError?.statusCode || geminiError?.lastError?.statusCode;
+
         const isQuotaError =
-          geminiError?.statusCode === 429 ||
-          geminiError?.message?.includes("quota") ||
-          geminiError?.message?.includes("rate") ||
-          geminiError?.responseBody?.includes("RESOURCE_EXHAUSTED");
+          statusCode === 429 ||
+          errorMessage.includes("quota") ||
+          errorMessage.includes("rate") ||
+          errorMessage.includes("RESOURCE_EXHAUSTED") ||
+          errorBody.includes("RESOURCE_EXHAUSTED");
 
         if (isQuotaError) {
           logger.warn("Gemini quota exceeded, falling back to OpenAI", {
             test_id: params.id,
-            error: geminiError?.message,
+            error: errorMessage,
           });
 
           try {
@@ -223,7 +242,11 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
             );
 
             const openaiResult = await streamOpenAIAnalysis(sajuInput);
-            await processStream(openaiResult.textStream);
+
+            for await (const chunk of openaiResult.textStream) {
+              fullText += chunk;
+              await streamWriter.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+            }
 
             await updateTestAnalysis(supabase, params.id, fullText);
             await streamWriter.write(`data: ${JSON.stringify({ done: true })}\n\n`);
