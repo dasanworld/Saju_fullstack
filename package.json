@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.46",
+    "@ai-sdk/openai": "^2.0.86",
     "@clerk/nextjs": "^6.36.2",
     "@hono/clerk-auth": "^3.0.3",
     "@hono/zod-validator": "^0.7.5",

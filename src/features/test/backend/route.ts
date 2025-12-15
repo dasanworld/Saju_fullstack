@@ -16,10 +16,12 @@ import {
   initTest,
   getTestForStream,
   updateTestAnalysis,
+  deleteTest,
 } from "./service";
 import { testErrorCodes } from "./error";
 import { getOrCreateUser } from "@/features/auth/backend/helpers";
 import { streamSajuAnalysis } from "@/lib/gemini/client";
+import { streamOpenAIAnalysis } from "@/lib/openai/client";
 import type { GeminiModel } from "@/lib/gemini/types";
 
 export const registerTestRoutes = (app: Hono<AppEnv>) => {
@@ -179,33 +181,92 @@ export const registerTestRoutes = (app: Hono<AppEnv>) => {
 
     return stream(c, async (streamWriter) => {
       let fullText = "";
+      const sajuInput = {
+        name: testData.name,
+        birth_date: testData.birth_date,
+        birth_time: testData.birth_time,
+        gender: testData.gender,
+      };
 
-      try {
-        const result = await streamSajuAnalysis(
-          {
-            name: testData.name,
-            birth_date: testData.birth_date,
-            birth_time: testData.birth_time,
-            gender: testData.gender,
-          },
-          model
-        );
-
-        for await (const chunk of result.textStream) {
+      const processStream = async (textStream: AsyncIterable<string>) => {
+        for await (const chunk of textStream) {
           fullText += chunk;
           await streamWriter.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
         }
+      };
+
+      try {
+        logger.info("Starting Gemini stream", { test_id: params.id });
+        const geminiResult = await streamSajuAnalysis(sajuInput, model);
+        await processStream(geminiResult.textStream);
 
         await updateTestAnalysis(supabase, params.id, fullText);
         await streamWriter.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        logger.info("Stream completed with Gemini", { test_id: params.id });
+      } catch (geminiError: any) {
+        const isQuotaError =
+          geminiError?.statusCode === 429 ||
+          geminiError?.message?.includes("quota") ||
+          geminiError?.message?.includes("rate") ||
+          geminiError?.responseBody?.includes("RESOURCE_EXHAUSTED");
 
-        logger.info("Stream completed", { test_id: params.id });
-      } catch (error) {
-        logger.error("Stream error", error);
-        await streamWriter.write(
-          `data: ${JSON.stringify({ error: "스트리밍 중 오류가 발생했습니다" })}\n\n`
-        );
+        if (isQuotaError) {
+          logger.warn("Gemini quota exceeded, falling back to OpenAI", {
+            test_id: params.id,
+            error: geminiError?.message,
+          });
+
+          try {
+            fullText = "";
+            await streamWriter.write(
+              `data: ${JSON.stringify({ fallback: "openai", message: "Gemini 쿼터 초과로 GPT-4.1-mini로 전환합니다..." })}\n\n`
+            );
+
+            const openaiResult = await streamOpenAIAnalysis(sajuInput);
+            await processStream(openaiResult.textStream);
+
+            await updateTestAnalysis(supabase, params.id, fullText);
+            await streamWriter.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+            logger.info("Stream completed with OpenAI fallback", { test_id: params.id });
+          } catch (openaiError) {
+            logger.error("OpenAI fallback also failed", openaiError);
+            await streamWriter.write(
+              `data: ${JSON.stringify({ error: "AI 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해주세요." })}\n\n`
+            );
+          }
+        } else {
+          logger.error("Gemini stream error (non-quota)", geminiError);
+          await streamWriter.write(
+            `data: ${JSON.stringify({ error: "스트리밍 중 오류가 발생했습니다" })}\n\n`
+          );
+        }
       }
     });
+  });
+
+  app.delete("/api/test/:id", async (c) => {
+    const auth = getAuth(c);
+
+    if (!auth?.userId) {
+      return respond(
+        c,
+        failure(401, testErrorCodes.INTERNAL_ERROR, "인증이 필요합니다")
+      );
+    }
+
+    const supabase = c.get("supabase");
+    const logger = c.get("logger");
+    const userResult = await getOrCreateUser(supabase, logger, auth.userId);
+
+    if (!userResult.success) {
+      return respond(
+        c,
+        failure(404, testErrorCodes.INTERNAL_ERROR, userResult.error)
+      );
+    }
+
+    const params = testParamsSchema.parse({ id: c.req.param("id") });
+
+    return respond(c, await deleteTest(supabase, userResult.user.id, params.id));
   });
 };

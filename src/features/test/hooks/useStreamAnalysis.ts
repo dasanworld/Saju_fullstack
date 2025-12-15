@@ -9,6 +9,7 @@ interface UseStreamAnalysisReturn {
   streamedText: string;
   status: StreamStatus;
   error: string | null;
+  fallbackMessage: string | null;
   startStream: (testId: string, model: string) => Promise<void>;
 }
 
@@ -17,6 +18,7 @@ export const useStreamAnalysis = (): UseStreamAnalysisReturn => {
   const [streamedText, setStreamedText] = useState("");
   const [status, setStatus] = useState<StreamStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export const useStreamAnalysis = (): UseStreamAnalysisReturn => {
 
       setStreamedText("");
       setError(null);
+      setFallbackMessage(null);
       setStatus("streaming");
 
       abortControllerRef.current = new AbortController();
@@ -80,6 +83,11 @@ export const useStreamAnalysis = (): UseStreamAnalysisReturn => {
                     setStreamedText((prev) => prev + data.text);
                   }
 
+                  if (data.fallback) {
+                    setFallbackMessage(data.message);
+                    setStreamedText("");
+                  }
+
                   if (data.done) {
                     setStatus("completed");
                   }
@@ -115,6 +123,7 @@ export const useStreamAnalysis = (): UseStreamAnalysisReturn => {
     streamedText,
     status,
     error,
+    fallbackMessage,
     startStream,
   };
 };

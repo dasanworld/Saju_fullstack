@@ -115,7 +115,7 @@ export const getTestList = async (
   try {
     let queryBuilder = supabase
       .from("tests")
-      .select("id, name, birth_date, birth_time, gender, created_at", {
+      .select("id, name, birth_date, birth_time, gender, created_at, analysis_result", {
         count: "exact",
       })
       .eq("user_id", userId)
@@ -133,8 +133,18 @@ export const getTestList = async (
       return failure(500, testErrorCodes.TEST_LIST_FAILED, "검사 목록 조회 실패");
     }
 
+    const tests = (data || []).map((test: any) => ({
+      id: test.id,
+      name: test.name,
+      birth_date: test.birth_date,
+      birth_time: test.birth_time,
+      gender: test.gender,
+      created_at: test.created_at,
+      has_analysis: !!test.analysis_result,
+    }));
+
     const response: TestListResponse = {
-      tests: data || [],
+      tests,
       total: count || 0,
     };
 
@@ -290,6 +300,38 @@ export const updateTestAnalysis = async (
     }
 
     return success({ updated: true });
+  } catch (error) {
+    return failure(500, testErrorCodes.INTERNAL_ERROR, "서버 오류");
+  }
+};
+
+export const deleteTest = async (
+  supabase: SupabaseClient,
+  userId: string,
+  testId: string
+) => {
+  try {
+    const { data: test, error: selectError } = await supabase
+      .from("tests")
+      .select("id, user_id")
+      .eq("id", testId)
+      .eq("user_id", userId)
+      .single();
+
+    if (selectError || !test) {
+      return failure(404, testErrorCodes.TEST_NOT_FOUND, "검사를 찾을 수 없습니다");
+    }
+
+    const { error: deleteError } = await supabase
+      .from("tests")
+      .delete()
+      .eq("id", testId);
+
+    if (deleteError) {
+      return failure(500, testErrorCodes.INTERNAL_ERROR, "삭제 실패");
+    }
+
+    return success({ deleted: true });
   } catch (error) {
     return failure(500, testErrorCodes.INTERNAL_ERROR, "서버 오류");
   }

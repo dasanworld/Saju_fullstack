@@ -8,10 +8,12 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar, Clock, User, Trash2, AlertCircle } from "lucide-react";
 import type { TestListResponse } from "../lib/dto";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { useDeleteTest } from "../hooks/useDeleteTest";
 
 type TestCardProps = {
   test: TestListResponse["tests"][number];
@@ -19,9 +21,17 @@ type TestCardProps = {
 
 export const TestCard = ({ test }: TestCardProps) => {
   const router = useRouter();
+  const { mutate: deleteTest, isPending: isDeleting } = useDeleteTest();
 
   const handleClick = () => {
     router.push(`/analysis/${test.id}`);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("이 검사를 삭제하시겠습니까?")) {
+      deleteTest(test.id);
+    }
   };
 
   const birthDate = format(new Date(test.birth_date), "yyyy년 MM월 dd일");
@@ -33,7 +43,7 @@ export const TestCard = ({ test }: TestCardProps) => {
 
   return (
     <Card
-      className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+      className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] relative"
       onClick={handleClick}
     >
       <CardHeader>
@@ -42,9 +52,17 @@ export const TestCard = ({ test }: TestCardProps) => {
             <User className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold">{test.name}</h3>
           </div>
-          <Badge variant="outline">
-            {test.gender === "male" ? "남성" : "여성"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {!test.has_analysis && (
+              <Badge variant="destructive" className="gap-1">
+                <AlertCircle className="h-3 w-3" />
+                분석 실패
+              </Badge>
+            )}
+            <Badge variant="outline">
+              {test.gender === "male" ? "남성" : "여성"}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
 
@@ -66,6 +84,17 @@ export const TestCard = ({ test }: TestCardProps) => {
         <span className="text-xs text-muted-foreground">
           검사 일시: {createdAt}
         </span>
+        {!test.has_analysis && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

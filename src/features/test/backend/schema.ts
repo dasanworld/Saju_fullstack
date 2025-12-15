@@ -34,6 +34,7 @@ export const testListItemSchema = z.object({
   birth_time: z.string().nullable(),
   gender: z.enum(["male", "female"]),
   created_at: z.string(),
+  has_analysis: z.boolean(),
 });
 
 export const testListResponseSchema = z.object({
