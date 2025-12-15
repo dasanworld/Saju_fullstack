@@ -58,8 +58,7 @@ export const createTest = async (
       return failure(500, testErrorCodes.TEST_CREATE_FAILED, "검사 생성 실패");
     }
 
-    const model: GeminiModel =
-      subscription.plan === "pro" ? "gemini-1.5-pro" : "gemini-2.0-flash";
+    const model: GeminiModel = "gemini-2.0-flash";
 
     const analysisResult = await generateSajuAnalysis(
       {
@@ -232,8 +231,7 @@ export const initTest = async (
       logger.error("Failed to decrement remaining_tests", decrementError);
     }
 
-    const model: GeminiModel =
-      subscription.plan === "pro" ? "gemini-1.5-pro" : "gemini-2.0-flash";
+    const model: GeminiModel = "gemini-2.0-flash";
 
     logger.info("Test initialized", { test_id: test.id, model });
 

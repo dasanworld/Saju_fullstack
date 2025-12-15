@@ -24,7 +24,7 @@ export const createTestResponseSchema = z.object({
 
 export const initTestResponseSchema = z.object({
   test_id: z.string().uuid(),
-  model: z.enum(["gemini-2.0-flash", "gemini-1.5-pro"]),
+  model: z.literal("gemini-2.0-flash"),
 });
 
 export const testListItemSchema = z.object({
