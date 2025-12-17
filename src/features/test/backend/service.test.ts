@@ -443,10 +443,20 @@ describe("Test Service", () => {
   describe("getTestDetail", () => {
     it("should return 404 when test not found", async () => {
       // Given - 검사를 찾을 수 없는 경우
-      const mockSupabase = createMockSupabase({
-        selectData: null,
-        selectError: { message: "Not found" },
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "Not found" },
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await getTestDetail(mockSupabase as any, "user-123", "test-123");
@@ -468,9 +478,20 @@ describe("Test Service", () => {
         analysis_result: "사주 분석 결과입니다.",
         created_at: "2025-01-01T00:00:00Z",
       };
-      const mockSupabase = createMockSupabase({
-        selectData: mockTest,
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: mockTest,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await getTestDetail(mockSupabase as any, "user-123", "test-123");
@@ -493,9 +514,20 @@ describe("Test Service", () => {
         analysis_result: null,
         created_at: "2025-01-01T00:00:00Z",
       };
-      const mockSupabase = createMockSupabase({
-        selectData: mockTest,
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: mockTest,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await getTestDetail(mockSupabase as any, "user-123", "test-123");
@@ -509,10 +541,20 @@ describe("Test Service", () => {
   describe("deleteTest", () => {
     it("should return 404 when test not found", async () => {
       // Given - 삭제할 검사가 없는 경우
-      const mockSupabase = createMockSupabase({
-        selectData: null,
-        selectError: { message: "Not found" },
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "Not found" },
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await deleteTest(mockSupabase as any, "user-123", "test-123");
@@ -554,21 +596,25 @@ describe("Test Service", () => {
 
     it("should delete test successfully", async () => {
       // Given - 정상적인 삭제
-      const mockSupabase = {
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: "test-123", user_id: "user-123" },
-                error: null,
-              }),
-            }),
-          }),
-          delete: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({
+      const selectMock = {
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { id: "test-123", user_id: "user-123" },
               error: null,
             }),
           }),
+        }),
+      };
+      const deleteMock = {
+        eq: vi.fn().mockResolvedValue({
+          error: null,
+        }),
+      };
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue(selectMock),
+          delete: vi.fn().mockReturnValue(deleteMock),
         }),
       };
 
@@ -672,10 +718,20 @@ describe("Test Service", () => {
   describe("getTestForStream", () => {
     it("should return 404 when test not found", async () => {
       // Given - 검사를 찾을 수 없는 경우
-      const mockSupabase = createMockSupabase({
-        selectData: null,
-        selectError: { message: "Not found" },
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "Not found" },
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await getTestForStream(mockSupabase as any, "user-123", "test-123");
@@ -696,9 +752,20 @@ describe("Test Service", () => {
         gender: "male",
         analysis_result: "이미 완료된 분석",
       };
-      const mockSupabase = createMockSupabase({
-        selectData: mockTest,
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: mockTest,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await getTestForStream(mockSupabase as any, "user-123", "test-123");
@@ -719,9 +786,20 @@ describe("Test Service", () => {
         gender: "male",
         analysis_result: null,
       };
-      const mockSupabase = createMockSupabase({
-        selectData: mockTest,
-      });
+      const mockSupabase = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: mockTest,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      };
 
       // When
       const result = await getTestForStream(mockSupabase as any, "user-123", "test-123");
